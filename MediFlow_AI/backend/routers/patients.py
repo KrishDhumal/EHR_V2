@@ -59,7 +59,10 @@ def get_patients(q: Optional[str] = None, skip: int = 0, limit: int = 200,
     query = db.query(schemas.Patient)
     query = security.scope_patients(query, user)
     if q:
-        query = query.filter(schemas.Patient.name.ilike(f"%{q}%"))
+        term = f"%{q.strip()}%"
+        query = query.filter(
+            schemas.Patient.name.ilike(term) | schemas.Patient.patient_id.ilike(term)
+        )
     return query.order_by(schemas.Patient.id.desc()).offset(skip).limit(limit).all()
 
 

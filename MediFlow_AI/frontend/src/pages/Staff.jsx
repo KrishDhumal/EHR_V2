@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { UserPlus, KeyRound, Power, Trash2, X, Shield } from 'lucide-react';
+import { UserPlus, KeyRound, Power, Trash2, X, Shield, Search } from 'lucide-react';
 import { apiFetch } from '../api';
 import { useAuthStore } from '../store/useAuthStore';
 
@@ -15,6 +15,7 @@ export default function Staff() {
   const [users, setUsers] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [q, setQ] = useState('');
   const [form, setForm] = useState({ username: '', full_name: '', password: '', role: 'Nurse', specialization: 'General' });
   const [msg, setMsg] = useState(null);
 
@@ -23,6 +24,9 @@ export default function Staff() {
 
   const selected = users.find((u) => u.id === selectedId) || null;
   const isSelf = selected && me && selected.id === me.id;
+  const filtered = users.filter(
+    (u) => !q || [u.full_name, u.username, u.role].join(' ').toLowerCase().includes(q.toLowerCase())
+  );
 
   const flash = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg(null), 3500); };
 
@@ -86,13 +90,22 @@ export default function Staff() {
         </div>
       )}
 
+      <div className="relative mb-4 max-w-md">
+        <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, user ID or role…"
+          className="w-full pl-10 pr-3 py-2 border border-border-color rounded-lg bg-surface-primary text-text-primary outline-none focus:border-primary" />
+      </div>
+
       <div className="glass-panel rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead className="text-left text-text-secondary border-b border-border-color bg-surface-secondary/40">
             <tr>{['User', 'User ID', 'Role', 'Status'].map((h) => <th key={h} className="px-4 py-3 font-medium">{h}</th>)}</tr>
           </thead>
           <tbody>
-            {users.map((u) => (
+            {filtered.length === 0 && (
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-text-secondary">No matching users.</td></tr>
+            )}
+            {filtered.map((u) => (
               <tr key={u.id} onClick={() => setSelectedId(u.id === selectedId ? null : u.id)}
                 className={`border-b border-border-color/40 cursor-pointer transition ${u.id === selectedId ? 'bg-primary/5' : 'hover:bg-surface-secondary/50'}`}>
                 <td className="px-4 py-3">

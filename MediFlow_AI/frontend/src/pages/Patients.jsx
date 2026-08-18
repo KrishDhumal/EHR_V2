@@ -88,7 +88,7 @@ export default function Patients({ scoped = false, title = 'Patients' }) {
 
       <div className="relative mb-4 max-w-md">
         <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name…"
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or patient ID (e.g. P-1031)…"
           className="w-full pl-10 pr-3 py-2 border border-border-color rounded-lg bg-surface-primary text-text-primary outline-none focus:border-primary" />
       </div>
 
