@@ -6,7 +6,10 @@ import os
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
 
-GROQ_API_KEY = ""
+# Read from the environment (loaded via .env) so the LLM is used when a valid
+# key is set, and the rule-based fallback kicks in otherwise. Matches the other
+# agents; the hardcoded empty string here was a regression from the code loss.
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 
 # UPGRADED SYSTEM PROMPT
 SYSTEM_PROMPT = """You are a hospital triage AI agent. Analyze the patient's symptoms and assign a priority level.
@@ -28,10 +31,10 @@ def run_intake_agent(patient_name: str, age: int, symptoms: str) -> dict:
     if GROQ_API_KEY:
         try:
             llm = ChatGroq(
-                model="llama-3.1-8b-instant",
+                model=os.getenv("GROQ_MODEL", "openai/gpt-oss-20b"),
                 api_key=GROQ_API_KEY,
                 temperature=0,
-                max_tokens=200,
+                max_tokens=512,
             )
             messages = [
                 SystemMessage(content=SYSTEM_PROMPT),

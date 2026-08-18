@@ -16,7 +16,7 @@ def _key():
 
 
 def _model():
-    return os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+    return os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 
 
 DISCLAIMER = "AI decision support — informational only. A qualified clinician must confirm before acting."

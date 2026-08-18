@@ -29,7 +29,7 @@ def run_doctor_assignment_agent(patient_name: str, symptoms: str, recommended_sp
 
     if GROQ_API_KEY and len(matching_sorted) > 1:
         try:
-            llm = ChatGroq(model="llama3-8b-8192", api_key=GROQ_API_KEY, temperature=0, max_tokens=150)
+            llm = ChatGroq(model=os.getenv("GROQ_MODEL", "openai/gpt-oss-20b"), api_key=GROQ_API_KEY, temperature=0, max_tokens=512)
             doctor_list = "\n".join([f"- {d['name']} | {d['specialization']} | {d['current_patient_count']} patients | {d['status']}" for d in matching_sorted[:5]])
             messages = [
                 SystemMessage(content="You are a hospital coordinator. Pick the best doctor for the patient from the list. Respond ONLY with JSON: {\"doctor_name\": \"...\", \"reason\": \"one sentence\"}"),

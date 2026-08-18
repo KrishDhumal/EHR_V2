@@ -43,7 +43,7 @@ def recommend(patient_id: str,
         raise HTTPException(status_code=503, detail="AI is not configured (no GROQ_API_KEY set).")
     prompt = _summary(patient, db) + "\n\nProvide clinical recommendations for this presentation."
     try:
-        text = ai.ask(ai.RECOMMEND_SYSTEM, [("user", prompt)], max_tokens=550, temperature=0.2)
+        text = ai.ask(ai.RECOMMEND_SYSTEM, [("user", prompt)], max_tokens=1200, temperature=0.2)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"AI request failed: {exc}")
     db.add(schemas.AgentLog(
@@ -82,7 +82,7 @@ def chat(payload: ChatRequest,
     turns = [(t.role, t.content) for t in (payload.history or [])[-8:]]
     turns.append(("user", payload.message))
     try:
-        reply = ai.ask(system, turns, max_tokens=600, temperature=0.4)
+        reply = ai.ask(system, turns, max_tokens=1200, temperature=0.4)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"AI request failed: {exc}")
     return {"reply": reply}
