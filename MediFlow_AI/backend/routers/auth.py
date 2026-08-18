@@ -92,7 +92,11 @@ def _now():
 
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(database.get_db)):
-    user = db.query(schemas.User).filter(schemas.User.username == payload.username).first()
+    # Accept either the user ID (username) or the full name as the login identifier.
+    ident = (payload.username or "").strip()
+    user = db.query(schemas.User).filter(
+        (schemas.User.username == ident) | (schemas.User.full_name == ident)
+    ).first()
     if not user:
         raise HTTPException(status_code=401, detail="Incorrect username or password")
 

@@ -31,6 +31,7 @@ const Dashboard = () => {
   const [logs, setLogs] = useState([]);
   const [queue, setQueue] = useState([]);
   const [beds, setBeds] = useState([]);
+  const [trend, setTrend] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
@@ -43,9 +44,12 @@ const Dashboard = () => {
       catch { return null; }
     };
     try {
-      const [kpiData, queueData] = await Promise.all([get('/system/kpis'), get('/patients/queue')]);
+      const [kpiData, queueData, trendData] = await Promise.all([
+        get('/system/kpis'), get('/patients/queue'), get('/system/visit-trend'),
+      ]);
       if (kpiData) setKpis(kpiData);
       if (queueData) setQueue(queueData);
+      if (trendData) setTrend(trendData);
       // Admin-only panels
       if (isAdmin) {
         const [logData, bedData] = await Promise.all([get('/system/logs'), get('/beds/')]);
@@ -79,15 +83,8 @@ const Dashboard = () => {
   const totalBeds = beds.length || 1;
   const occupancyPct = Math.round((occupied / totalBeds) * 100);
 
-  // Flow chart — build from queue counts by hour placeholder
-  const flowData = [
-    { time: '08:00', patients: 5 },
-    { time: '10:00', patients: 18 },
-    { time: '12:00', patients: queue.length + 10 },
-    { time: '14:00', patients: queue.length + 25 },
-    { time: '16:00', patients: queue.length + 15 },
-    { time: 'Now', patients: queue.length },
-  ];
+  // Real visit-volume trend (encounters per month) from the backend.
+  const flowData = trend.map((t) => ({ time: t.month, patients: t.visits }));
 
   const agentColor = {
     'Patient Intake': 'text-primary',
@@ -135,7 +132,7 @@ const Dashboard = () => {
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.5 }}
           className="glass-panel p-6 rounded-xl lg:col-span-2 shadow-sm"
         >
-          <h3 className="text-lg font-semibold text-text-primary mb-4">Live Patient Flow</h3>
+          <h3 className="text-lg font-semibold text-text-primary mb-4">Visit Volume — recent months</h3>
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={flowData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>

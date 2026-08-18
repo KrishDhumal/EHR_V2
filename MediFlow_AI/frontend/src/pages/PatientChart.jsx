@@ -11,6 +11,22 @@ import { useAuthStore } from '../store/useAuthStore';
 
 const TABS = ['Overview', 'Vitals', 'Diagnoses', 'Medications', 'Notes', 'Encounters', 'Tests & Bills'];
 
+const PILL = {
+  // priority
+  Emergency: 'bg-red-100 text-red-700', High: 'bg-amber-100 text-amber-700', Normal: 'bg-emerald-100 text-emerald-700',
+  // status
+  Waiting: 'bg-amber-100 text-amber-700', 'In Treatment': 'bg-blue-100 text-blue-700',
+  Admitted: 'bg-violet-100 text-violet-700', Discharged: 'bg-slate-100 text-slate-500',
+  // clinical
+  Active: 'bg-blue-100 text-blue-700', Resolved: 'bg-emerald-100 text-emerald-700', Stopped: 'bg-slate-100 text-slate-500',
+  // tests
+  Completed: 'bg-emerald-100 text-emerald-700', Ready: 'bg-blue-100 text-blue-700',
+  'In Progress': 'bg-amber-100 text-amber-700', Pending: 'bg-slate-100 text-slate-500',
+  // billing
+  Paid: 'bg-emerald-100 text-emerald-700', Insurance: 'bg-blue-100 text-blue-700',
+};
+const Pill = ({ v }) => <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${PILL[v] || 'bg-slate-100 text-slate-600'}`}>{v || '—'}</span>;
+
 export default function PatientChart() {
   const { patientId } = useParams();
   const user = useAuthStore((s) => s.user);
@@ -63,9 +79,11 @@ export default function PatientChart() {
             <h1 className="text-2xl font-bold text-text-primary">{p.name}</h1>
             <p className="text-text-secondary text-sm mt-1">
               <span className="font-mono text-primary">{p.patient_id}</span> · {p.age}y · {p.gender || '—'} ·
-              Blood {p.blood_group || '—'} · {p.priority} · {p.status}
+              Blood {p.blood_group || '—'} · Dr. {(p.assigned_doctor || '—').replace(/^Dr\.\s*/, '')}
             </p>
-            <p className="text-text-secondary text-sm">Doctor: {p.assigned_doctor || '—'}</p>
+            <div className="flex items-center gap-2 mt-2">
+              <Pill v={p.priority} /><Pill v={p.status} />
+            </div>
           </div>
           <div className="flex gap-2">
             <button onClick={runAI} className="btn-blue"><Sparkles size={16} /> AI Diagnosis</button>
@@ -230,7 +248,11 @@ function ListTab({ items, cols, patientId, kind, canWrite, reload }) {
           <tbody>
             {items.map((it) => (
               <tr key={it.id} className="border-t border-border-color/40">
-                {cols.map((c) => <td key={c} className="py-2 pr-4 text-text-primary">{it[c] || '—'}</td>)}
+                {cols.map((c) => (
+                  <td key={c} className="py-2 pr-4 text-text-primary">
+                    {c === 'status' ? <Pill v={it[c]} /> : (it[c] || '—')}
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>
@@ -278,7 +300,7 @@ function MedsTab({ chart, patientId, canRx, reload }) {
                 <td className="py-2 pr-4 font-medium text-text-primary">{m.medication}</td>
                 <td className="py-2 pr-4">{m.dosage || '—'}</td>
                 <td className="py-2 pr-4">{m.frequency || '—'}</td>
-                <td className="py-2 pr-4">{m.status}</td>
+                <td className="py-2 pr-4"><Pill v={m.status} /></td>
                 <td className="py-2 pr-4 text-text-secondary">{m.prescribed_by}</td>
                 <td className="py-2 pr-4">{canRx && m.status === 'Active' && <button onClick={() => stop(m.id)} className="text-red-600 hover:underline text-xs">Stop</button>}</td>
               </tr>
@@ -376,12 +398,28 @@ function TestsBills({ chart }) {
     <div className="grid md:grid-cols-2 gap-4">
       <div className="card">
         <div className="font-semibold mb-2">Tests</div>
-        {chart.tests.map((t) => <div key={t.id} className="text-sm border-t border-border-color/40 py-2">{t.test_name} — {t.status}{t.result ? ` · ${t.result}` : ''}</div>)}
+        {chart.tests.map((t) => (
+          <div key={t.id} className="border-t border-border-color/40 py-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-text-primary">{t.test_name}</span>
+              <Pill v={t.status} />
+            </div>
+            {t.result && <div className="text-xs text-text-secondary mt-1">{t.result}</div>}
+          </div>
+        ))}
         {chart.tests.length === 0 && <div className="text-text-secondary text-sm">None</div>}
       </div>
       <div className="card">
         <div className="font-semibold mb-2">Bills</div>
-        {chart.bills.map((b) => <div key={b.id} className="text-sm border-t border-border-color/40 py-2">Rs. {b.total_amount} — {b.payment_status}<div className="text-xs text-text-secondary">{b.items}</div></div>)}
+        {chart.bills.map((b) => (
+          <div key={b.id} className="border-t border-border-color/40 py-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-text-primary">₹ {Number(b.total_amount).toLocaleString('en-IN')}</span>
+              <Pill v={b.payment_status} />
+            </div>
+            <div className="text-xs text-text-secondary mt-1">{b.items}</div>
+          </div>
+        ))}
         {chart.bills.length === 0 && <div className="text-text-secondary text-sm">None</div>}
       </div>
     </div>
