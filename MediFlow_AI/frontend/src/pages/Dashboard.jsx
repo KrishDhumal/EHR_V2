@@ -6,7 +6,8 @@ import {
   PieChart, Pie, Cell, Legend
 } from 'recharts';
 
-const API_BASE = 'http://127.0.0.1:8000/api';
+import { rawFetch } from '../api';
+import { useAuthStore } from '../store/useAuthStore';
 
 const KPICard = ({ title, value, icon: Icon, colorClass, delay }) => (
   <motion.div
@@ -33,28 +34,31 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
+  const role = useAuthStore((s) => s.user?.role);
+
   const fetchAll = useCallback(async () => {
+    const isAdmin = role === 'Admin';
+    const get = async (path) => {
+      try { const r = await rawFetch(path); return r.ok ? await r.json() : null; }
+      catch { return null; }
+    };
     try {
-      const [kpiRes, logRes, queueRes, bedRes] = await Promise.all([
-        fetch(`${API_BASE}/system/kpis`),
-        fetch(`${API_BASE}/system/logs`),
-        fetch(`${API_BASE}/patients/queue`),
-        fetch(`${API_BASE}/beds/`),
-      ]);
-      const [kpiData, logData, queueData, bedData] = await Promise.all([
-        kpiRes.json(), logRes.json(), queueRes.json(), bedRes.json()
-      ]);
-      setKpis(kpiData);
-      setLogs(logData.slice(0, 8));
-      setQueue(queueData);
-      setBeds(bedData);
+      const [kpiData, queueData] = await Promise.all([get('/system/kpis'), get('/patients/queue')]);
+      if (kpiData) setKpis(kpiData);
+      if (queueData) setQueue(queueData);
+      // Admin-only panels
+      if (isAdmin) {
+        const [logData, bedData] = await Promise.all([get('/system/logs'), get('/beds/')]);
+        if (logData) setLogs(logData.slice(0, 8));
+        if (bedData) setBeds(bedData);
+      }
       setLastRefresh(new Date());
     } catch (e) {
       console.error('Dashboard fetch error:', e);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [role]);
 
   useEffect(() => {
     fetchAll();

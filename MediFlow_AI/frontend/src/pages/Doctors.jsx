@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { rawFetch } from '../api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Stethoscope, UserCircle, Clock, ChevronRight, X } from 'lucide-react';
 
@@ -11,7 +12,7 @@ const Doctors = () => {
 
   const openQueue = (doc) => {
     setSelectedDoctor(doc);
-    fetch('http://localhost:8000/api/patients/queue')
+    rawFetch('/patients/queue')
       .then(res => res.json())
       .then(data => {
         const queue = Array.isArray(data) ? data.filter(p => p.assigned_doctor === doc.name) : [];
@@ -22,7 +23,7 @@ const Doctors = () => {
   };
 
   const markAsDone = (patientId) => {
-    fetch(`http://localhost:8000/api/patients/${patientId}/discharge`, {
+    rawFetch(`/patients/${patientId}/discharge`, {
       method: 'PATCH',
     })
       .then(res => res.json())
@@ -43,7 +44,7 @@ const Doctors = () => {
   };
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/doctors/')
+    rawFetch('/doctors/')
       .then(res => res.json())
       .then(data => { setDoctors(Array.isArray(data) ? data : []); setLoading(false); })
       .catch((err) => { console.error(err); setLoading(false); });

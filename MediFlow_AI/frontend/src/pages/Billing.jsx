@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { rawFetch } from '../api';
 import { motion } from 'framer-motion';
 import { Receipt, CheckCircle, Clock, ShieldAlert, Download } from 'lucide-react';
 
@@ -6,14 +7,14 @@ const Billing = () => {
   const [bills, setBills] = useState([]);
   
   useEffect(() => {
-    fetch('http://localhost:8000/api/billing/')
+    rawFetch('/billing/')
       .then(res => res.json())
       .then(data => setBills(Array.isArray(data) ? data : []))
       .catch(console.error);
   }, []);
 
   const handleClearDues = (billId) => {
-    fetch(`http://localhost:8000/api/billing/${billId}/pay`, {
+    rawFetch(`/billing/${billId}/pay`, {
       method: 'PATCH',
     })
       .then(res => res.json())

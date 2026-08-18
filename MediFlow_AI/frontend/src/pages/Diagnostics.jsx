@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { rawFetch } from '../api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ActivitySquare, Search, FileText, CheckCircle, Clock, X } from 'lucide-react';
 
@@ -9,7 +10,7 @@ const Diagnostics = () => {
   const [newTest, setNewTest] = useState({ patient_id: '', patient_name: '', test_name: 'Blood Test' });
 
   const fetchTests = () => {
-    fetch('http://localhost:8000/api/diagnostics/')
+    rawFetch('/diagnostics/')
       .then(res => res.json())
       .then(data => setTests(Array.isArray(data) ? data : []))
       .catch(console.error);
@@ -21,7 +22,7 @@ const Diagnostics = () => {
 
   const scheduleTest = (e) => {
     e.preventDefault();
-    fetch('http://localhost:8000/api/diagnostics/', {
+    rawFetch('/diagnostics/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newTest)
@@ -45,7 +46,7 @@ const Diagnostics = () => {
     if (currentStatus === 'In Progress') nextStatus = 'Ready';
     if (currentStatus === 'Ready') nextStatus = 'Completed';
 
-    fetch(`http://localhost:8000/api/diagnostics/${id}/status`, {
+    rawFetch(`/diagnostics/${id}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: nextStatus })

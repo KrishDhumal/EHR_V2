@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
+import MediBot from './MediBot';
 
 const AppShell = () => {
   return (
@@ -13,9 +14,9 @@ const AppShell = () => {
           <Outlet />
         </main>
       </div>
+      <MediBot />
     </div>
   );
 };
 
 export default AppShell;
-

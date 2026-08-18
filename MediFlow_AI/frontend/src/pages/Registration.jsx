@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { rawFetch } from '../api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserPlus, Sparkles, AlertCircle, CheckCircle, FlaskConical, BedDouble, Stethoscope } from 'lucide-react';
 
@@ -19,7 +20,7 @@ const Registration = () => {
     setResult(null);
 
     try {
-      const response = await fetch(`${API_BASE}/patients/`, {
+      const response = await rawFetch(`/patients/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

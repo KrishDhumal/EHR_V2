@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { rawFetch } from '../api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BedDouble, Info } from 'lucide-react';
 
@@ -7,7 +8,7 @@ const Beds = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/beds/')
+    rawFetch('/beds/')
       .then(res => res.json())
       .then(data => { setBeds(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(err => { console.error(err); setLoading(false); });
@@ -26,7 +27,7 @@ const Beds = () => {
   const markAvailable = (bedId, currentStatus) => {
     if (currentStatus !== 'Cleaning') return; // Only allow clicking on beds that are cleaning
 
-    fetch(`http://localhost:8000/api/beds/${bedId}/status`, {
+    rawFetch(`/beds/${bedId}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'Available' })
