@@ -30,6 +30,8 @@ class Patient(Base):
     insurance_id = Column(EncryptedString, nullable=True)
     allergies = Column(EncryptedString, nullable=True)
     chronic_conditions = Column(EncryptedString, nullable=True)
+    # False for unidentified emergency ("John Doe") admissions until confirmed.
+    identity_confirmed = Column(Boolean, default=True)
 
 
 class Doctor(Base):

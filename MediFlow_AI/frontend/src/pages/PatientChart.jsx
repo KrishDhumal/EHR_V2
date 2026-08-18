@@ -27,6 +27,14 @@ const PILL = {
 };
 const Pill = ({ v }) => <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${PILL[v] || 'bg-slate-100 text-slate-600'}`}>{v || '—'}</span>;
 
+const NEWS2_STYLE = {
+  high: 'bg-red-100 text-red-700 border-red-200',
+  medium: 'bg-amber-100 text-amber-700 border-amber-200',
+  'low-medium': 'bg-yellow-100 text-yellow-700 border-yellow-200',
+  low: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  unknown: 'bg-slate-100 text-slate-500 border-slate-200',
+};
+
 export default function PatientChart() {
   const { patientId } = useParams();
   const user = useAuthStore((s) => s.user);
@@ -37,6 +45,7 @@ export default function PatientChart() {
   const [aiOpen, setAiOpen] = useState(false);
   const [ai, setAi] = useState({ loading: false, text: '', error: '' });
   const [encModal, setEncModal] = useState(null);
+  const [idOpen, setIdOpen] = useState(false);
 
   const canWrite = ['Admin', 'Doctor', 'Nurse'].includes(user?.role);
   const canRx = ['Admin', 'Doctor'].includes(user?.role);
@@ -70,9 +79,21 @@ export default function PatientChart() {
   if (!chart) return null;
 
   const p = chart.patient;
+  const news2 = chart.vitals?.[0]?.news2;
+  const unidentified = p.identity_confirmed === false;
 
   return (
     <div>
+      {unidentified && (
+        <div className="mb-4 flex items-center justify-between gap-3 flex-wrap rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
+          <div className="flex items-center gap-2 text-amber-800 text-sm">
+            <AlertTriangle size={18} /> <b>Identity unconfirmed</b> — this patient was admitted as an unidentified emergency.
+          </div>
+          {canWrite && (
+            <button onClick={() => setIdOpen(true)} className="btn-blue">Confirm identity</button>
+          )}
+        </div>
+      )}
       <div className="glass-panel rounded-xl p-5 mb-5">
         <div className="flex justify-between items-start flex-wrap gap-3">
           <div>
@@ -81,8 +102,14 @@ export default function PatientChart() {
               <span className="font-mono text-primary">{p.patient_id}</span> · {p.age}y · {p.gender || '—'} ·
               Blood {p.blood_group || '—'} · Dr. {(p.assigned_doctor || '—').replace(/^Dr\.\s*/, '')}
             </p>
-            <div className="flex items-center gap-2 mt-2">
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
               <Pill v={p.priority} /><Pill v={p.status} />
+              {news2 && news2.score != null && (
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${NEWS2_STYLE[news2.band]}`}
+                  title={`NEWS2 deterioration score — ${news2.response}`}>
+                  NEWS2 {news2.score} · {news2.label}
+                </span>
+              )}
             </div>
           </div>
           <div className="flex gap-2">
@@ -116,6 +143,7 @@ export default function PatientChart() {
 
       {aiOpen && <AIModal ai={ai} onClose={() => setAiOpen(false)} />}
       {encModal && <EncounterModal enc={encModal} chart={chart} onClose={() => setEncModal(null)} />}
+      {idOpen && <IdentifyModal patientId={patientId} onClose={() => setIdOpen(false)} onDone={() => { setIdOpen(false); load(); }} />}
 
       <style>{`.btn-blue{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem .85rem;background:#2563eb;color:#fff;border-radius:.6rem;font-size:.85rem;font-weight:500}.btn-blue:hover{background:#1d4ed8}.btn-secondary{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem .8rem;border:1px solid var(--border-color,#cbd5e1);border-radius:.6rem;font-size:.85rem;font-weight:500}.card{background:var(--surface-primary,#fff);border:1px solid var(--border-color,#e2e8f0);border-radius:.75rem;padding:1rem}.fld{width:100%;padding:.5rem .7rem;border:1px solid #cbd5e1;border-radius:.5rem;font-size:.9rem;margin-bottom:.5rem}`}</style>
     </div>
@@ -167,8 +195,27 @@ function VitalsTab({ chart, patientId, canWrite, reload }) {
     } catch (e) { setErr(e.message); }
   };
   const fields = ['temperature_c', 'heart_rate', 'systolic_bp', 'diastolic_bp', 'respiratory_rate', 'spo2', 'weight_kg', 'height_cm'];
+  const n = rows[0]?.news2;
   return (
     <div className="space-y-4">
+      {n && n.score != null && (
+        <div className={`rounded-xl p-4 border ${NEWS2_STYLE[n.band]}`}>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <div className="text-xs uppercase tracking-wide opacity-70">Deterioration · NEWS2</div>
+              <div className="text-2xl font-bold leading-tight">{n.score} · {n.label}</div>
+              <div className="text-xs opacity-80">{n.response}</div>
+            </div>
+            <div className="flex flex-wrap gap-1.5 max-w-[62%] justify-end">
+              {Object.entries(n.breakdown).map(([f, b]) => (
+                <span key={f} className={`px-2 py-0.5 rounded text-xs font-medium ${b.score >= 3 ? 'bg-red-200/70 text-red-900' : b.score >= 1 ? 'bg-amber-200/70 text-amber-900' : 'bg-white/60 text-slate-600'}`}>
+                  {b.label} {b.value} (+{b.score})
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       {rows.length > 1 && (
         <div className="card" style={{ height: 260 }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -439,6 +486,42 @@ function AIModal({ ai, onClose }) {
         {ai.text && <div className="text-sm text-slate-800 whitespace-pre-wrap">{ai.text}</div>}
         <p className="text-xs text-slate-400 mt-4">AI decision support — a qualified clinician must confirm before acting.</p>
       </div>
+    </div>
+  );
+}
+
+function IdentifyModal({ patientId, onClose, onDone }) {
+  const [form, setForm] = useState({ name: '', age: '', gender: '', contact: '', blood_group: '', allergies: '', chronic_conditions: '' });
+  const [err, setErr] = useState('');
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  const submit = async (e) => {
+    e.preventDefault(); setErr('');
+    try {
+      const body = { ...form, age: form.age ? Number(form.age) : null };
+      await apiFetch(`/patients/${patientId}/identify`, { method: 'PATCH', body: JSON.stringify(body) });
+      onDone();
+    } catch (ex) { setErr(ex.message); }
+  };
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <form onClick={(e) => e.stopPropagation()} onSubmit={submit} className="bg-white rounded-xl p-5 max-w-md w-full space-y-3">
+        <div className="flex justify-between items-center">
+          <h3 className="font-bold text-lg">Confirm patient identity</h3>
+          <button type="button" onClick={onClose}><X size={20} /></button>
+        </div>
+        <p className="text-sm text-slate-500">Attach real details to this previously-unidentified patient.</p>
+        <input className="fld" placeholder="Full name" value={form.name} onChange={set('name')} required />
+        <div className="grid grid-cols-3 gap-2">
+          <input className="fld" placeholder="Age" type="number" value={form.age} onChange={set('age')} />
+          <select className="fld" value={form.gender} onChange={set('gender')}><option value="">Gender</option><option>Male</option><option>Female</option></select>
+          <input className="fld" placeholder="Blood group" value={form.blood_group} onChange={set('blood_group')} />
+        </div>
+        <input className="fld" placeholder="Contact" value={form.contact} onChange={set('contact')} />
+        <input className="fld" placeholder="Allergies" value={form.allergies} onChange={set('allergies')} />
+        <input className="fld" placeholder="Chronic conditions" value={form.chronic_conditions} onChange={set('chronic_conditions')} />
+        {err && <div className="text-red-600 text-sm">{err}</div>}
+        <button className="btn-blue w-full justify-center">Confirm identity</button>
+      </form>
     </div>
   );
 }

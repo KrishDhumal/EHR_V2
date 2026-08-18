@@ -6,6 +6,7 @@ from typing import List, Optional
 from agents.coordinator import run_coordinator
 from auth import security
 from patient_import import create_patient_with_history
+import deterioration
 
 router = APIRouter()
 
@@ -46,10 +47,29 @@ class PatientFullResponse(PatientResponse):
     bed_number: Optional[str] = None
     ward: Optional[str] = None
     triage_reason: Optional[str] = None
+    confidence: Optional[float] = None
+    alternatives: Optional[List[dict]] = []
 
 
 class ImportRequest(BaseModel):
     patients: List[dict]
+
+
+class EmergencyAdmit(BaseModel):
+    gender: Optional[str] = None   # "Male"/"Female" if visually apparent, else Unknown
+    notes: Optional[str] = None    # e.g. "RTA, unconscious, brought by ambulance"
+
+
+class IdentifyPatient(BaseModel):
+    name: str
+    age: Optional[int] = None
+    gender: Optional[str] = None
+    contact: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    blood_group: Optional[str] = None
+    address: Optional[str] = None
+    allergies: Optional[str] = None
+    chronic_conditions: Optional[str] = None
 
 
 @router.get("/", response_model=List[PatientResponse])
@@ -121,7 +141,94 @@ def register_patient(patient: PatientCreate,
         age=new_patient.age, symptoms=new_patient.symptoms, priority=new_patient.priority,
         status=new_patient.status, assigned_doctor=new_patient.assigned_doctor,
         suggested_tests=suggested_tests, bed_number=bed_info.get("bed_number"),
-        ward=bed_info.get("ward"), triage_reason=agent_results["intake"].get("reason"))
+        ward=bed_info.get("ward"), triage_reason=agent_results["intake"].get("reason"),
+        confidence=agent_results["intake"].get("confidence"),
+        alternatives=agent_results["intake"].get("alternatives", []))
+
+
+@router.post("/emergency", response_model=PatientFullResponse)
+def emergency_admit(payload: EmergencyAdmit,
+                    db: Session = Depends(database.get_db),
+                    user: schemas.User = Depends(security.require_roles("Admin", "Doctor", "Nurse", "Receptionist"))):
+    """Unknown-patient ("John Doe") admission. Bypasses name/age validation to
+    start clinical work immediately: forces Emergency priority, assigns a trauma
+    doctor and an ICU bed, and marks the record identity-unconfirmed."""
+    gender = payload.gender if payload and payload.gender in ("Male", "Female") else None
+    label = gender or "Unknown"
+    symptoms = ((payload.notes or "").strip() if payload else "") or \
+        "Unidentified emergency admission — history unavailable"
+
+    p = schemas.Patient(name="Unknown", age=None, symptoms=symptoms,
+                        priority="Emergency", status="In Treatment",
+                        gender=gender, identity_confirmed=False)
+    db.add(p)
+    db.flush()
+    p.patient_id = f"P-{1000 + p.id}"
+    p.name = f"Unknown {label} — {p.patient_id}"
+
+    # Trauma doctor: prefer an available Emergency specialist, else least-busy available.
+    doc = (db.query(schemas.Doctor)
+           .filter(schemas.Doctor.specialization == "Emergency", schemas.Doctor.status == "Available")
+           .order_by(schemas.Doctor.current_patient_count.asc()).first()
+           or db.query(schemas.Doctor).filter(schemas.Doctor.status == "Available")
+           .order_by(schemas.Doctor.current_patient_count.asc()).first())
+    if doc:
+        p.assigned_doctor = doc.name
+        doc.current_patient_count = (doc.current_patient_count or 0) + 1
+        if doc.current_patient_count >= 5:
+            doc.status = "Busy"
+
+    # ICU bed (fall back to any available bed).
+    bed = (db.query(schemas.Bed).filter(schemas.Bed.ward == "ICU", schemas.Bed.status == "Available").first()
+           or db.query(schemas.Bed).filter(schemas.Bed.status == "Available").first())
+    bed_number = ward = None
+    if bed:
+        bed.status = "Occupied"
+        bed.patient_id = p.patient_id
+        bed_number, ward = bed.bed_number, bed.ward
+
+    db.add(schemas.Encounter(patient_id=p.patient_id, encounter_type="Emergency",
+                             reason="Unidentified emergency admission",
+                             attending_doctor=p.assigned_doctor, status="Open"))
+    for agent, act, msg in [
+        ("Patient Intake", "TRIAGE", f"UNKNOWN PATIENT {p.patient_id} — identity unconfirmed. Triage forced to EMERGENCY."),
+        ("Doctor Assignment", "ASSIGN", f"Trauma doctor {p.assigned_doctor or 'N/A'} assigned to {p.patient_id}."),
+        ("Bed Management", "ALLOCATE", f"ICU bed {bed_number or 'N/A'} allocated to {p.patient_id}."),
+        ("Coordinator", "EMERGENCY", f"Emergency admission complete for {p.patient_id}. Awaiting identification."),
+    ]:
+        db.add(schemas.AgentLog(agent_name=agent, action_type=act, message=msg, actor=user.full_name))
+    db.commit()
+    db.refresh(p)
+
+    return PatientFullResponse(
+        id=p.id, patient_id=p.patient_id, name=p.name, age=0, symptoms=p.symptoms,
+        priority=p.priority, status=p.status, assigned_doctor=p.assigned_doctor,
+        suggested_tests=["ECG", "Trauma Panel (FAST)", "CBC (Complete Blood Count)"],
+        bed_number=bed_number, ward=ward,
+        triage_reason="Unidentified emergency — clinical work started before identification.")
+
+
+@router.patch("/{patient_id}/identify")
+def identify_patient(patient_id: str, payload: IdentifyPatient,
+                     db: Session = Depends(database.get_db),
+                     user: schemas.User = Depends(security.require_roles("Admin", "Doctor", "Nurse", "Receptionist"))):
+    """Attach real demographics to a previously-unidentified patient."""
+    p = db.query(schemas.Patient).filter(schemas.Patient.patient_id == patient_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    security.authorize_patient(p, user)
+    p.name = payload.name
+    for f in ["age", "gender", "contact", "date_of_birth", "blood_group", "address", "allergies", "chronic_conditions"]:
+        val = getattr(payload, f)
+        if val not in (None, ""):
+            setattr(p, f, val)
+    p.identity_confirmed = True
+    db.add(schemas.AgentLog(agent_name="Registration", action_type="IDENTIFY",
+                            message=f"Identity confirmed for {patient_id}: now {payload.name}.",
+                            actor=user.full_name))
+    db.commit()
+    db.refresh(p)
+    return {"message": f"Identity confirmed for {patient_id}.", "name": p.name}
 
 
 @router.post("/import")
@@ -138,13 +245,31 @@ def import_patients(payload: ImportRequest,
     return {"message": f"Imported {created} patient(s).", "count": created}
 
 
-@router.get("/queue", response_model=List[PatientResponse])
+@router.get("/queue")
 def get_queue(db: Session = Depends(database.get_db),
               user: schemas.User = Depends(security.get_current_user)):
+    """Active queue, risk-ordered: highest NEWS2 (sickest) first, then priority."""
     query = db.query(schemas.Patient).filter(
-        schemas.Patient.status.in_(["Waiting", "In Treatment"]))
+        schemas.Patient.status.in_(["Waiting", "In Treatment", "Admitted"]))
     query = security.scope_patients(query, user)
-    return query.order_by(schemas.Patient.id.asc()).all()
+    prio = {"Emergency": 0, "High": 1, "Normal": 2}
+    out = []
+    for p in query.all():
+        latest = (db.query(schemas.Vitals).filter(schemas.Vitals.patient_id == p.patient_id)
+                  .order_by(schemas.Vitals.id.desc()).first())
+        n = deterioration.news2({
+            "respiratory_rate": latest.respiratory_rate, "spo2": latest.spo2,
+            "temperature_c": latest.temperature_c, "systolic_bp": latest.systolic_bp,
+            "heart_rate": latest.heart_rate,
+        } if latest else {})
+        out.append({
+            "id": p.id, "patient_id": p.patient_id, "name": p.name, "age": p.age or 0,
+            "symptoms": p.symptoms, "priority": p.priority, "status": p.status,
+            "assigned_doctor": p.assigned_doctor, "identity_confirmed": p.identity_confirmed,
+            "news2": n["score"], "news2_band": n["band"], "news2_response": n["response"],
+        })
+    out.sort(key=lambda x: (-(x["news2"] if x["news2"] is not None else -1), prio.get(x["priority"], 3)))
+    return out
 
 
 @router.patch("/{patient_id}/discharge")

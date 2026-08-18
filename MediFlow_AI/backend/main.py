@@ -61,6 +61,7 @@ def _run_lightweight_migrations():
             ("emergency_contact_name", "VARCHAR"), ("emergency_contact_phone", "VARCHAR"),
             ("insurance_provider", "VARCHAR"), ("insurance_id", "VARCHAR"),
             ("allergies", "VARCHAR"), ("chronic_conditions", "VARCHAR"),
+            ("identity_confirmed", "BOOLEAN DEFAULT 1"),
         ],
         "agent_logs": [("actor", "VARCHAR")],
         "diagnostic_tests": [("result", "VARCHAR")],

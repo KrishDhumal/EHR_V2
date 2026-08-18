@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from models import database, schemas
 from auth import security
 import clinical_safety
+import deterioration
 
 router = APIRouter()
 
@@ -39,6 +40,7 @@ def _serialize_vitals(v):
         "recorded_at": v.recorded_at.isoformat() if v.recorded_at else None,
     }
     data["flags"] = clinical_safety.flag_vitals(data)
+    data["news2"] = deterioration.news2(data)
     return data
 
 
