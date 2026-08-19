@@ -46,6 +46,8 @@ export default function PatientChart() {
   const [ai, setAi] = useState({ loading: false, text: '', error: '' });
   const [encModal, setEncModal] = useState(null);
   const [idOpen, setIdOpen] = useState(false);
+  const [sumOpen, setSumOpen] = useState(false);
+  const [summary, setSummary] = useState({ loading: false, data: null, error: '' });
 
   const canWrite = ['Admin', 'Doctor', 'Nurse'].includes(user?.role);
   const canRx = ['Admin', 'Doctor'].includes(user?.role);
@@ -64,6 +66,14 @@ export default function PatientChart() {
       const data = await apiFetch(`/ai/recommend/${patientId}`, { method: 'POST' });
       setAi({ loading: false, text: data.recommendation, error: '' });
     } catch (e) { setAi({ loading: false, text: '', error: e.message }); }
+  };
+
+  const runSummary = async () => {
+    setSumOpen(true); setSummary({ loading: true, data: null, error: '' });
+    try {
+      const data = await apiFetch(`/ai/summary/${patientId}`, { method: 'POST' });
+      setSummary({ loading: false, data, error: '' });
+    } catch (e) { setSummary({ loading: false, data: null, error: e.message }); }
   };
 
   const grantPortal = async () => {
@@ -125,6 +135,7 @@ export default function PatientChart() {
           </div>
           <div className="flex gap-2 flex-wrap">
             <button onClick={runAI} className="btn-blue"><Sparkles size={16} /> AI Diagnosis</button>
+            <button onClick={runSummary} className="btn-secondary"><Sparkles size={16} /> AI Summary</button>
             <button onClick={exportFhir} className="btn-secondary"><FileJson size={16} /> Export FHIR</button>
             {['Admin', 'Receptionist'].includes(user?.role) && (
               <button onClick={grantPortal} className="btn-secondary"><KeyRound size={16} /> Portal access</button>
@@ -159,6 +170,7 @@ export default function PatientChart() {
       {aiOpen && <AIModal ai={ai} onClose={() => setAiOpen(false)} />}
       {encModal && <EncounterModal enc={encModal} chart={chart} onClose={() => setEncModal(null)} />}
       {idOpen && <IdentifyModal patientId={patientId} onClose={() => setIdOpen(false)} onDone={() => { setIdOpen(false); load(); }} />}
+      {sumOpen && <SummaryModal state={summary} onClose={() => setSumOpen(false)} />}
 
       <style>{`.btn-blue{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem .85rem;background:#2563eb;color:#fff;border-radius:.6rem;font-size:.85rem;font-weight:500}.btn-blue:hover{background:#1d4ed8}.btn-secondary{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem .8rem;border:1px solid var(--border-color,#cbd5e1);border-radius:.6rem;font-size:.85rem;font-weight:500}.card{background:var(--surface-primary,#fff);border:1px solid var(--border-color,#e2e8f0);border-radius:.75rem;padding:1rem}.fld{width:100%;padding:.5rem .7rem;border:1px solid #cbd5e1;border-radius:.5rem;font-size:.9rem;margin-bottom:.5rem}`}</style>
     </div>
@@ -546,6 +558,46 @@ function AIModal({ ai, onClose }) {
         {ai.error && <div className="text-red-600 bg-red-50 rounded p-3 text-sm">{ai.error}</div>}
         {ai.text && <div className="text-sm text-slate-800 whitespace-pre-wrap">{ai.text}</div>}
         <p className="text-xs text-slate-400 mt-4">AI decision support — a qualified clinician must confirm before acting.</p>
+      </div>
+    </div>
+  );
+}
+
+function SummaryModal({ state, onClose }) {
+  const { loading, data, error } = state;
+  const factMap = {};
+  (data?.facts || []).forEach((f) => { factMap[f.id] = f.text; });
+  const render = (text) => (text || '').split(/(\[[A-Z]\d+\])/g).map((part, i) => {
+    const m = part.match(/^\[([A-Z]\d+)\]$/);
+    if (m) return <span key={i} title={factMap[m[1]] || 'source fact'} className="inline-block px-1.5 py-0.5 mx-0.5 rounded bg-blue-100 text-blue-700 text-xs font-medium cursor-help">{m[1]}</span>;
+    return <span key={i}>{part}</span>;
+  });
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-xl p-5 max-w-lg w-full max-h-[80vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="font-bold text-lg flex items-center gap-2"><Sparkles size={18} className="text-blue-600" /> Grounded summary</h3>
+          <button onClick={onClose}><X size={20} /></button>
+        </div>
+        {loading && <div className="flex items-center gap-2 text-slate-500"><Loader2 className="animate-spin" /> Generating…</div>}
+        {error && <div className="text-red-600 bg-red-50 rounded p-3 text-sm">{error}</div>}
+        {data && (
+          <>
+            <p className="text-xs text-slate-500 mb-3">Every claim is cited to a source fact — hover a citation to see it. The AI may only use these facts, so it cannot hallucinate.</p>
+            <div className="text-sm text-slate-800 leading-relaxed">{render(data.summary)}</div>
+            <div className="mt-4 border-t pt-3">
+              <div className="text-xs font-semibold text-slate-600 mb-2">Source facts</div>
+              <div className="space-y-1">
+                {data.facts.map((f) => (
+                  <div key={f.id} className="text-xs text-slate-600 flex gap-2">
+                    <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium shrink-0">{f.id}</span>
+                    <span>{f.text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
