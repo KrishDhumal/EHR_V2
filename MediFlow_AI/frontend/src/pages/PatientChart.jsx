@@ -9,7 +9,7 @@ import {
 import { apiFetch, fhirFetch } from '../api';
 import { useAuthStore } from '../store/useAuthStore';
 
-const TABS = ['Overview', 'Vitals', 'Diagnoses', 'Medications', 'Notes', 'Encounters', 'Tests & Bills'];
+const TABS = ['Overview', 'Vitals', 'Diagnoses', 'Medications', 'Notes', 'Encounters', 'Tests & Bills', 'Consent'];
 
 const PILL = {
   // priority
@@ -140,6 +140,7 @@ export default function PatientChart() {
       {tab === 'Notes' && <NotesTab chart={chart} patientId={patientId} canWrite={canWrite} reload={load} />}
       {tab === 'Encounters' && <EncountersTab chart={chart} onOpen={setEncModal} />}
       {tab === 'Tests & Bills' && <TestsBills chart={chart} />}
+      {tab === 'Consent' && <ConsentTab patientId={patientId} />}
 
       {aiOpen && <AIModal ai={ai} onClose={() => setAiOpen(false)} />}
       {encModal && <EncounterModal enc={encModal} chart={chart} onClose={() => setEncModal(null)} />}
@@ -468,6 +469,52 @@ function TestsBills({ chart }) {
           </div>
         ))}
         {chart.bills.length === 0 && <div className="text-text-secondary text-sm">None</div>}
+      </div>
+    </div>
+  );
+}
+
+function ConsentTab({ patientId }) {
+  const [events, setEvents] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const load = () => apiFetch(`/patients/${patientId}/consent`).then(setEvents).catch(() => {});
+  useEffect(() => { load(); }, [patientId]);
+
+  const record = async (type) => {
+    let reason = '';
+    if (type === 'BREAK_GLASS') { reason = prompt('Reason for emergency break-glass access (required):') || ''; if (!reason) return; }
+    else { reason = prompt(`Reason / party for this ${type} (optional):`) || ''; }
+    setBusy(true);
+    try { await apiFetch(`/patients/${patientId}/consent`, { method: 'POST', body: JSON.stringify({ event_type: type, reason }) }); load(); }
+    finally { setBusy(false); }
+  };
+
+  const STYLE = { EXPORT: 'bg-blue-100 text-blue-700', GRANT: 'bg-emerald-100 text-emerald-700', DENY: 'bg-red-100 text-red-700', BREAK_GLASS: 'bg-amber-100 text-amber-700' };
+  return (
+    <div className="space-y-4">
+      <div className="card">
+        <div className="text-sm font-semibold mb-1">Consent &amp; data-sharing ledger</div>
+        <p className="text-xs text-text-secondary mb-3">Every FHIR export, consent decision and emergency access is recorded here — patient-controlled sharing in the spirit of ABDM.</p>
+        <div className="flex gap-2 flex-wrap">
+          <button disabled={busy} onClick={() => record('GRANT')} className="btn-secondary">Record consent GRANT</button>
+          <button disabled={busy} onClick={() => record('DENY')} className="btn-secondary">Record consent DENY</button>
+          <button disabled={busy} onClick={() => record('BREAK_GLASS')} className="btn-secondary" style={{ borderColor: '#fca5a5', color: '#dc2626' }}>Break-glass access</button>
+        </div>
+      </div>
+      <div className="card">
+        {events.length === 0 ? <div className="text-text-secondary text-sm">No consent events yet. Exporting the FHIR record logs one automatically.</div> : (
+          <div className="space-y-1">
+            {events.map((e) => (
+              <div key={e.id} className="flex items-start justify-between border-t border-border-color/40 py-2.5 first:border-0">
+                <div>
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${STYLE[e.event_type] || 'bg-slate-100 text-slate-600'}`}>{e.event_type.replace('_', ' ')}</span>
+                  <span className="text-sm text-text-primary ml-2">{e.reason || e.party || '—'}</span>
+                  <div className="text-xs text-text-secondary mt-0.5">{e.actor} · {e.created_at?.slice(0, 16).replace('T', ' ')}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

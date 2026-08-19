@@ -175,6 +175,20 @@ class User(Base):
     locked_until = Column(DateTime(timezone=True), nullable=True)
 
 
+class ConsentEvent(Base):
+    """Consent / data-sharing ledger (ABDM-style). Records every FHIR export,
+    consent grant/deny, and emergency break-glass access next to the audit trail."""
+    __tablename__ = "consent_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(String, index=True)
+    event_type = Column(String)   # EXPORT, GRANT, DENY, BREAK_GLASS
+    actor = Column(String)        # staff member who triggered it
+    party = Column(String, nullable=True)   # who the data went to / who granted
+    reason = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class Appointment(Base):
     __tablename__ = "appointments"
 

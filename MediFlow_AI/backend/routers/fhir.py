@@ -76,6 +76,13 @@ def patient_everything(patient_id: str,
         resources.append(F.diagnosis_to_condition(d))
     for m in db.query(schemas.Prescription).filter(schemas.Prescription.patient_id == patient_id).all():
         resources.append(F.prescription_to_medreq(m))
+    # Consent ledger: record that the full record was exported.
+    db.add(schemas.ConsentEvent(patient_id=patient_id, event_type="EXPORT",
+                                actor=user.full_name, party="FHIR export",
+                                reason="Full-record FHIR bundle exported"))
+    db.add(schemas.AgentLog(agent_name="Consent", action_type="EXPORT",
+                            message=f"FHIR full-record export for {patient_id}.", actor=user.full_name))
+    db.commit()
     return F.bundle(resources, bundle_type="document")
 
 

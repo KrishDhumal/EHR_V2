@@ -305,3 +305,38 @@ def stop_prescription(patient_id: str, rx_id: int,
     db.commit()
     db.refresh(rx)
     return rx
+
+
+class ConsentCreate(BaseModel):
+    event_type: str            # GRANT, DENY, BREAK_GLASS
+    party: Optional[str] = None
+    reason: Optional[str] = None
+
+
+@router.get("/{patient_id}/consent")
+def list_consent(patient_id: str, db: Session = Depends(database.get_db),
+                 user: schemas.User = Depends(security.get_current_user)):
+    _get_patient_or_404(patient_id, db, user)
+    rows = (db.query(schemas.ConsentEvent).filter(schemas.ConsentEvent.patient_id == patient_id)
+            .order_by(schemas.ConsentEvent.id.desc()).all())
+    return rows
+
+
+@router.post("/{patient_id}/consent")
+def add_consent(patient_id: str, payload: ConsentCreate,
+                db: Session = Depends(database.get_db),
+                user: schemas.User = Depends(security.get_current_user)):
+    """Record a consent grant/deny or an emergency break-glass access."""
+    _get_patient_or_404(patient_id, db, user)
+    if payload.event_type not in ("GRANT", "DENY", "BREAK_GLASS"):
+        raise HTTPException(status_code=400, detail="Invalid consent event type")
+    ev = schemas.ConsentEvent(patient_id=patient_id, event_type=payload.event_type,
+                              actor=user.full_name, party=payload.party, reason=payload.reason)
+    db.add(ev)
+    db.add(schemas.AgentLog(agent_name="Consent", action_type=payload.event_type,
+                            message=f"{payload.event_type} for {patient_id}"
+                                    + (f" — {payload.reason}" if payload.reason else ""),
+                            actor=user.full_name))
+    db.commit()
+    db.refresh(ev)
+    return ev
