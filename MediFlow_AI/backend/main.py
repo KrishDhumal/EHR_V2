@@ -66,7 +66,8 @@ def _run_lightweight_migrations():
         "agent_logs": [("actor", "VARCHAR")],
         "diagnostic_tests": [("result", "VARCHAR")],
         "prescriptions": [("notes", "VARCHAR")],
-        "users": [("failed_attempts", "INTEGER DEFAULT 0"), ("locked_until", "DATETIME")],
+        "users": [("failed_attempts", "INTEGER DEFAULT 0"), ("locked_until", "DATETIME"),
+                  ("patient_id", "VARCHAR")],
     }
     with database.engine.begin() as conn:
         for table, cols in added_columns.items():

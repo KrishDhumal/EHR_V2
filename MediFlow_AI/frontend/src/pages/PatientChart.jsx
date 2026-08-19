@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
-  Loader2, Sparkles, FileJson, AlertTriangle, X, Activity,
+  Loader2, Sparkles, FileJson, AlertTriangle, X, Activity, KeyRound,
 } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
@@ -66,6 +66,17 @@ export default function PatientChart() {
     } catch (e) { setAi({ loading: false, text: '', error: e.message }); }
   };
 
+  const grantPortal = async () => {
+    const username = prompt('Portal username for the patient (e.g. their MRN):', patientId.toLowerCase());
+    if (!username) return;
+    const password = prompt('Set a portal password (min 6 characters):');
+    if (!password) return;
+    try {
+      const r = await apiFetch(`/patients/${patientId}/portal-access`, { method: 'POST', body: JSON.stringify({ username, password }) });
+      alert(`${r.message}\n\nUsername: ${username}\nThe patient can now sign in to the portal.`);
+    } catch (e) { alert(e.message); }
+  };
+
   const exportFhir = async () => {
     const res = await fhirFetch(`/fhir/Patient/${patientId}/$everything`);
     const blob = await res.blob();
@@ -112,9 +123,12 @@ export default function PatientChart() {
               )}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button onClick={runAI} className="btn-blue"><Sparkles size={16} /> AI Diagnosis</button>
             <button onClick={exportFhir} className="btn-secondary"><FileJson size={16} /> Export FHIR</button>
+            {['Admin', 'Receptionist'].includes(user?.role) && (
+              <button onClick={grantPortal} className="btn-secondary"><KeyRound size={16} /> Portal access</button>
+            )}
           </div>
         </div>
         {p.allergies && (

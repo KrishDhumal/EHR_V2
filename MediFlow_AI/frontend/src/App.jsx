@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useThemeStore } from './store/useThemeStore';
+import { useAuthStore } from './store/useAuthStore';
+import PatientPortal from './pages/PatientPortal';
 
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -29,6 +31,20 @@ const guard = (element, roles) => <ProtectedRoute roles={roles}>{element}</Prote
 function App() {
   const { initTheme } = useThemeStore();
   useEffect(() => { initTheme(); }, [initTheme]);
+  const role = useAuthStore((s) => s.user?.role);
+
+  if (role === 'Patient') {
+    return (
+      <ErrorBoundary>
+        <Router>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="*" element={<ProtectedRoute><PatientPortal /></ProtectedRoute>} />
+          </Routes>
+        </Router>
+      </ErrorBoundary>
+    );
+  }
 
   return (
     <ErrorBoundary>

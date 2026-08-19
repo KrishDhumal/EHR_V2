@@ -27,6 +27,8 @@ def list_appointments(status: Optional[str] = None,
     q = db.query(schemas.Appointment)
     if user.role == "Doctor":
         q = q.filter(schemas.Appointment.doctor_name == user.full_name)
+    elif user.role == "Patient":
+        q = q.filter(schemas.Appointment.patient_id == user.patient_id)
     if status:
         q = q.filter(schemas.Appointment.status == status)
     return q.order_by(schemas.Appointment.scheduled_for.asc()).all()

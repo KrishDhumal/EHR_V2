@@ -173,6 +173,8 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     failed_attempts = Column(Integer, default=0)
     locked_until = Column(DateTime(timezone=True), nullable=True)
+    # Set for portal (role="Patient") accounts — links to their own record.
+    patient_id = Column(String, nullable=True)
 
 
 class ConsentEvent(Base):

@@ -78,12 +78,16 @@ def require_roles(*allowed_roles: str):
 def scope_patients(query, user):
     if user.role == "Doctor":
         return query.filter(schemas.Patient.assigned_doctor == user.full_name)
+    if user.role == "Patient":
+        return query.filter(schemas.Patient.patient_id == user.patient_id)
     return query
 
 
 def can_access_patient(patient, user) -> bool:
     if user.role == "Doctor":
         return patient.assigned_doctor == user.full_name
+    if user.role == "Patient":
+        return patient.patient_id == user.patient_id
     return True
 
 

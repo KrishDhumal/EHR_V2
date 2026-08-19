@@ -231,6 +231,45 @@ def identify_patient(patient_id: str, payload: IdentifyPatient,
     return {"message": f"Identity confirmed for {patient_id}.", "name": p.name}
 
 
+class PortalAccess(BaseModel):
+    username: str
+    password: str
+
+
+@router.get("/{patient_id}/portal-access")
+def portal_access_status(patient_id: str, db: Session = Depends(database.get_db),
+                         user: schemas.User = Depends(security.require_roles("Admin", "Receptionist", "Doctor", "Nurse"))):
+    u = db.query(schemas.User).filter(schemas.User.role == "Patient",
+                                      schemas.User.patient_id == patient_id).first()
+    return {"exists": u is not None, "username": u.username if u else None}
+
+
+@router.post("/{patient_id}/portal-access")
+def grant_portal_access(patient_id: str, payload: PortalAccess,
+                        db: Session = Depends(database.get_db),
+                        user: schemas.User = Depends(security.require_roles("Admin", "Receptionist"))):
+    """Create a read-only patient-portal login linked to this patient record."""
+    p = db.query(schemas.Patient).filter(schemas.Patient.patient_id == patient_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if len(payload.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    if db.query(schemas.User).filter(schemas.User.username == payload.username).first():
+        raise HTTPException(status_code=400, detail="Username already exists")
+    if db.query(schemas.User).filter(schemas.User.role == "Patient",
+                                     schemas.User.patient_id == patient_id).first():
+        raise HTTPException(status_code=400, detail="This patient already has portal access")
+    u = schemas.User(username=payload.username, full_name=p.name,
+                     hashed_password=security.hash_password(payload.password),
+                     role="Patient", is_active=True, patient_id=patient_id)
+    db.add(u)
+    db.add(schemas.AgentLog(agent_name="Access", action_type="PORTAL",
+                            message=f"Portal access granted for {patient_id} ({payload.username}).",
+                            actor=user.full_name))
+    db.commit()
+    return {"message": f"Portal access created for {p.name}.", "username": payload.username}
+
+
 @router.post("/import")
 def import_patients(payload: ImportRequest,
                     db: Session = Depends(database.get_db),

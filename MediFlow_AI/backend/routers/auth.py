@@ -26,6 +26,7 @@ class UserResponse(BaseModel):
     full_name: str
     role: str
     is_active: bool
+    patient_id: Optional[str] = None
 
     class Config:
         from_attributes = True
