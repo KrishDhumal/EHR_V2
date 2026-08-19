@@ -305,14 +305,30 @@ def discharge_patient(patient_id: str,
         patient_id=patient.patient_id, patient_name=patient.name,
         items=", ".join(items), total_amount=total_cost, payment_status="Pending"))
 
+    # Follow-up / readmission risk (5th agent)
+    from agents.followup_agent import assess_readmission
+    visit_count = db.query(schemas.Encounter).filter(
+        schemas.Encounter.patient_id == patient_id).count()
+    has_followup = db.query(schemas.Appointment).filter(
+        schemas.Appointment.patient_id == patient_id,
+        schemas.Appointment.status == "Scheduled").first() is not None
+    risk = assess_readmission(patient, visit_count, has_followup)
+
     db.add(schemas.ClinicalNote(
         patient_id=patient.patient_id, note_type="Discharge", author=user.full_name,
-        content=f"Patient discharged by {user.full_name}. Final bill Rs. {total_cost}."))
+        content=(f"Patient discharged by {user.full_name}. Final bill Rs. {total_cost}. "
+                 f"30-day readmission risk: {risk['band']} (score {risk['score']}). "
+                 f"Factors: {'; '.join(risk['factors']) or 'none'}. {risk['advice']}")))
 
+    db.add(schemas.AgentLog(
+        agent_name="Follow-up Risk", action_type="READMIT_RISK",
+        message=f"{patient.name}: {risk['band']} 30-day readmission risk (score {risk['score']}). {risk['advice']}",
+        actor=user.full_name))
     db.add(schemas.AgentLog(
         agent_name="Billing & Discharge", action_type="DISCHARGE",
         message=f"Patient {patient.name} discharged. Bill: Rs. {total_cost}.",
         actor=user.full_name))
 
     db.commit()
-    return {"message": f"Patient {patient.name} discharged successfully."}
+    return {"message": f"Patient {patient.name} discharged successfully.",
+            "readmission_risk": risk, "bill_total": total_cost}

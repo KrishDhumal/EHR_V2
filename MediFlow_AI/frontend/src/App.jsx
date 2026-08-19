@@ -18,6 +18,7 @@ import Diagnostics from './pages/Diagnostics';
 import Billing from './pages/Billing';
 import Appointments from './pages/Appointments';
 import Coordinator from './pages/Coordinator';
+import Rounds from './pages/Rounds';
 import Reports from './pages/Reports';
 import AuditLog from './pages/AuditLog';
 import Staff from './pages/Staff';
@@ -43,6 +44,7 @@ function App() {
             <Route path="/patients" element={guard(<Patients />, ['Admin', 'Nurse', 'Receptionist'])} />
             <Route path="/patients/:patientId" element={<PatientChart />} />
             <Route path="/my-patients" element={guard(<MyPatients />, ['Doctor'])} />
+            <Route path="/rounds" element={guard(<Rounds />, ['Admin', 'Doctor', 'Nurse'])} />
 
             <Route path="/registration" element={guard(<Registration />, ['Admin', 'Receptionist'])} />
             <Route path="/doctors" element={guard(<Doctors />, ['Admin'])} />

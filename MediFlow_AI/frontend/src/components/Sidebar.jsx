@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Users, UserPlus, Stethoscope, Bed, Receipt, ActivitySquare,
-  UserCog, CalendarDays, Radio, BarChart3, ScrollText, ClipboardList,
+  UserCog, CalendarDays, Radio, BarChart3, ScrollText, ClipboardList, Moon,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuthStore } from '../store/useAuthStore';
@@ -13,6 +13,7 @@ const ALL_ITEMS = [
   { name: 'Patients', path: '/patients', icon: Users, roles: ['Admin', 'Nurse', 'Receptionist'] },
   { name: 'Registration', path: '/registration', icon: UserPlus, roles: ['Admin', 'Receptionist'] },
   { name: 'Doctors & Queue', path: '/doctors', icon: Stethoscope, roles: ['Admin'] },
+  { name: 'Ward Rounds', path: '/rounds', icon: Moon, roles: ['Admin', 'Doctor', 'Nurse'] },
   { name: 'Diagnostics', path: '/diagnostics', icon: ActivitySquare, roles: ['Admin', 'Doctor', 'Nurse'] },
   { name: 'Bed Management', path: '/beds', icon: Bed, roles: ['Admin', 'Nurse'] },
   { name: 'Billing', path: '/billing', icon: Receipt, roles: ['Admin', 'Doctor', 'Receptionist'] },

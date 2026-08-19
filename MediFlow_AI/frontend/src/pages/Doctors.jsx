@@ -36,8 +36,13 @@ const Doctors = () => {
   const activeCount = (name) => (byDoctor[name] || []).filter((p) => ACTIVE.includes(p.status)).length;
 
   const markDone = async (patientId) => {
-    await rawFetch(`/patients/${patientId}/discharge`, { method: 'PATCH' }).catch(() => {});
-    setPatients((prev) => prev.map((p) => (p.patient_id === patientId ? { ...p, status: 'Discharged' } : p)));
+    try {
+      const res = await rawFetch(`/patients/${patientId}/discharge`, { method: 'PATCH' });
+      const data = await res.json();
+      setPatients((prev) => prev.map((p) => (p.patient_id === patientId ? { ...p, status: 'Discharged' } : p)));
+      const r = data.readmission_risk;
+      if (r) alert(`Discharged.\n\n30-day readmission risk: ${r.band} (score ${r.score})\n${r.advice}\n\nFactors: ${r.factors.join('; ') || 'none'}`);
+    } catch { /* ignore */ }
   };
 
   const list = selected ? (byDoctor[selected.name] || []) : [];
