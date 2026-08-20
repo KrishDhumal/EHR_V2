@@ -119,6 +119,38 @@ class ChatRequest(BaseModel):
     patient_id: Optional[str] = None
 
 
+def _system_context(db, user) -> str:
+    """A compact, role-scoped snapshot of the live hospital state, so MediBot can
+    answer questions about patients, doctors, assignments and counts — but only
+    for data the current user is allowed to see."""
+    from collections import Counter
+    role = user.role
+    if role == "Patient":
+        return ""  # portal users only get their own record (handled separately)
+
+    patients = security.scope_patients(db.query(schemas.Patient), user).all()
+    by_status = Counter(p.status for p in patients)
+    by_priority = Counter(p.priority for p in patients)
+
+    lines = [f"Total patients you can see: {len(patients)}."]
+    if by_status:
+        lines.append("By status — " + ", ".join(f"{k}: {v}" for k, v in by_status.items()) + ".")
+    lines.append(f"Emergency-priority: {by_priority.get('Emergency', 0)}; High: {by_priority.get('High', 0)}.")
+
+    if role in ("Admin", "Nurse", "Receptionist"):
+        docs = db.query(schemas.Doctor).all()
+        lines.append(f"Doctors on roster: {len(docs)} ({sum(1 for d in docs if d.status == 'Available')} available). "
+                     + "; ".join(f"{d.name} ({d.specialization}, {d.status})" for d in docs) + ".")
+        beds = db.query(schemas.Bed).all()
+        lines.append(f"Beds: {len(beds)} total, {sum(1 for b in beds if b.status == 'Occupied')} occupied, "
+                     f"{sum(1 for b in beds if b.status == 'Available')} available.")
+
+    lines.append("Patient list (MRN — name — assigned doctor — status — priority):")
+    for p in patients[:80]:
+        lines.append(f"  {p.patient_id} — {p.name} — {p.assigned_doctor or 'unassigned'} — {p.status} — {p.priority}")
+    return "\n".join(lines)
+
+
 @router.post("/chat")
 def chat(payload: ChatRequest,
          db: Session = Depends(database.get_db),
@@ -128,6 +160,10 @@ def chat(payload: ChatRequest,
     if not payload.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
     system = ai.CHAT_SYSTEM
+    ctx = _system_context(db, user)
+    if ctx:
+        system = system + ("\n\nLIVE HOSPITAL DATA (use this to answer questions about patients, doctors, "
+                           "assignments, bed and queue counts — only what this user may see):\n" + ctx)
     if payload.patient_id:
         p = db.query(schemas.Patient).filter(schemas.Patient.patient_id == payload.patient_id).first()
         if p and security.can_access_patient(p, user):
@@ -135,7 +171,9 @@ def chat(payload: ChatRequest,
     turns = [(t.role, t.content) for t in (payload.history or [])[-8:]]
     turns.append(("user", payload.message))
     try:
-        reply = ai.ask(system, turns, max_tokens=1200, temperature=0.4)
+        reply = ai.ask(system, turns, max_tokens=2000, temperature=0.4)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"AI request failed: {exc}")
+    if not (reply or "").strip():
+        reply = "I couldn't put that together just now — try rephrasing, or ask for a shorter answer."
     return {"reply": reply}
