@@ -22,7 +22,7 @@ def run_diagnostic_agent(patient_name: str, symptoms: str, priority: str) -> lis
     """
     if GROQ_API_KEY:
         try:
-            llm = ChatGroq(model="llama3-8b-8192", api_key=GROQ_API_KEY, temperature=0, max_tokens=100)
+            llm = ChatGroq(model=os.getenv("GROQ_MODEL", "openai/gpt-oss-20b"), api_key=GROQ_API_KEY, temperature=0, max_tokens=512)
             messages = [
                 SystemMessage(content=SYSTEM_PROMPT),
                 HumanMessage(content=f"Patient: {patient_name}, Priority: {priority}\nSymptoms: {symptoms}")

@@ -1,47 +1,83 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useThemeStore } from './store/useThemeStore';
+import { useAuthStore } from './store/useAuthStore';
+import PatientPortal from './pages/PatientPortal';
 
-// Components
+import ErrorBoundary from './components/ErrorBoundary';
+import ProtectedRoute from './components/ProtectedRoute';
 import AppShell from './components/AppShell';
 
-// Pages
+import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import Patients from './pages/Patients';
+import MyPatients from './pages/MyPatients';
+import PatientChart from './pages/PatientChart';
 import Registration from './pages/Registration';
 import Doctors from './pages/Doctors';
 import Beds from './pages/Beds';
 import Diagnostics from './pages/Diagnostics';
 import Billing from './pages/Billing';
+import Appointments from './pages/Appointments';
 import Coordinator from './pages/Coordinator';
+import Rounds from './pages/Rounds';
+import Reports from './pages/Reports';
+import AuditLog from './pages/AuditLog';
+import Staff from './pages/Staff';
+import Account from './pages/Account';
+
+const guard = (element, roles) => <ProtectedRoute roles={roles}>{element}</ProtectedRoute>;
 
 function App() {
   const { initTheme } = useThemeStore();
+  useEffect(() => { initTheme(); }, [initTheme]);
+  const role = useAuthStore((s) => s.user?.role);
 
-  useEffect(() => {
-    initTheme();
-  }, [initTheme]);
+  if (role === 'Patient') {
+    return (
+      <ErrorBoundary>
+        <Router>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="*" element={<ProtectedRoute><PatientPortal /></ProtectedRoute>} />
+          </Routes>
+        </Router>
+      </ErrorBoundary>
+    );
+  }
 
   return (
-    <Router>
-      <Routes>
-        {/* AppShell is now the permanent layout wrapper */}
-        <Route element={<AppShell />}>
-          {/* Automatically redirect the base URL to the dashboard */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/registration" element={<Registration />} />
-          <Route path="/doctors" element={<Doctors />} />
-          <Route path="/diagnostics" element={<Diagnostics />} />
-          <Route path="/beds" element={<Beds />} />
-          <Route path="/billing" element={<Billing />} />
-          <Route path="/coordinator" element={<Coordinator />} />
-        </Route>
+    <ErrorBoundary>
+      <Router>
+        <Routes>
+          <Route path="/login" element={<Login />} />
 
-        {/* Fallback - Catch any unknown URLs and send them to the dashboard */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </Router>
+          <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/account" element={<Account />} />
+
+            <Route path="/patients" element={guard(<Patients />, ['Admin', 'Nurse', 'Receptionist'])} />
+            <Route path="/patients/:patientId" element={<PatientChart />} />
+            <Route path="/my-patients" element={guard(<MyPatients />, ['Doctor'])} />
+            <Route path="/rounds" element={guard(<Rounds />, ['Admin', 'Doctor', 'Nurse'])} />
+
+            <Route path="/registration" element={guard(<Registration />, ['Admin', 'Receptionist'])} />
+            <Route path="/doctors" element={guard(<Doctors />, ['Admin'])} />
+            <Route path="/diagnostics" element={guard(<Diagnostics />, ['Admin', 'Doctor', 'Nurse'])} />
+            <Route path="/beds" element={guard(<Beds />, ['Admin', 'Nurse'])} />
+            <Route path="/billing" element={guard(<Billing />, ['Admin', 'Doctor', 'Receptionist'])} />
+            <Route path="/appointments" element={guard(<Appointments />, ['Admin', 'Doctor', 'Receptionist'])} />
+            <Route path="/coordinator" element={guard(<Coordinator />, ['Admin'])} />
+            <Route path="/reports" element={guard(<Reports />, ['Admin'])} />
+            <Route path="/audit" element={guard(<AuditLog />, ['Admin'])} />
+            <Route path="/staff" element={guard(<Staff />, ['Admin'])} />
+          </Route>
+
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </Router>
+    </ErrorBoundary>
   );
 }
 
